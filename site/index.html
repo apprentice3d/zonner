@@ -1,0 +1,341 @@
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <!-- The Viewer CSS -->
+
+
+    <!-- The Viewer JS -->
+    <script src="https://developer.api.autodesk.com/derivativeservice/v2/viewers/three.min.js"></script>
+    <script src="https://developer.api.autodesk.com/derivativeservice/v2/viewers/viewer3D.min.js?v=3.3"></script>
+    <script src="./assets/js/dat.gui.js"></script>
+
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/derivativeservice/v2/viewers/style.css?v=3.3" type="text/css">
+
+    <!-- Developer CSS -->
+    <link rel="stylesheet" href="./assets/css/my_style.css" type="text/css">
+    <link rel="stylesheet" href="./assets/css/light_dat.css" type="text/css">
+    <style>
+        #MyControls {
+            position: absolute;
+            /* top: 5px; */
+            /* left: 5px; */
+            right: 15px;
+            bottom: 105px;
+            z-index: 1;
+            height: 80%;
+            width: 10%;
+            /* padding: 1em; */
+            /* font-size: 1em; */
+            /* cursor: pointer; */
+            /* box-shadow: 5px 5px 5px #888888; */
+            border: 1px solid #D4D4D4;
+            background-color: white;
+            border-radius: 5px;
+        }
+
+        #autodesk_logo {
+            position: absolute;
+            width: 20%;
+            top: 15px;
+            left: 15px;
+            z-index: 1;
+        }
+
+        #autodesk_logo img {
+            max-width: 50%;
+        }
+    </style>
+
+</head>
+
+
+
+<body>
+
+    <div id="MyViewerDiv"></div>
+    <div id="MyControls" class="adsk control">
+        <div>
+            <h4>Data:</h4>
+            <p id="id_printer">Selected_ID: </p>
+            <hr>
+        </div>
+
+        <div>
+            <p>Transparency:</p>
+            Zone1: <input type="range" min="0" max="50" value="0" class="slider" id="Zone1">
+            Zone2: <input type="range" min="0" max="50" value="0" class="slider" id="Zone2">
+            Zone3: <input type="range" min="0" max="50" value="0" class="slider" id="Zone3">
+        </div>
+
+
+
+
+    </div>
+    <div id="autodesk_logo">
+        <img src="./assets/img/forge-logo.png">
+    </div>
+
+    <!-- Developer JS -->
+    <script>
+        let viewerApp;
+        let viewer = null;
+        let tree = null;
+        let options = {
+            env: 'AutodeskProduction',
+            getAccessToken: function (onGetAccessToken) {
+                let token_fetcher = 'https://9irt90dm6j.execute-api.us-east-1.amazonaws.com/prod';
+                let xmlHttp = new XMLHttpRequest();
+                xmlHttp.open("GET", token_fetcher, false);
+                xmlHttp.send(null);
+                let data = JSON.parse(xmlHttp.responseText);
+
+                let accessToken = data["access_token"];
+                let expireTimeSeconds = data["expires_in"];
+                onGetAccessToken(accessToken, expireTimeSeconds);
+            },
+        };
+
+        let documentId = 'urn:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6em9ubmVyX2J1Y2tldC8wMXNrZXRjaC5mM2Q';
+
+        Autodesk.Viewing.Initializer(options, function onInitialized() {
+            viewerApp = new Autodesk.Viewing.ViewingApplication('MyViewerDiv');
+            viewerApp.registerViewer(viewerApp.k3D, Autodesk.Viewing.Viewer3D); //to display GUI, replace 'Viewer3D' with 'Private.GuiViewer3D'
+            viewerApp.loadDocument(documentId, onDocumentLoadSuccess, onDocumentLoadFailure);
+            viewer = viewerApp.getCurrentViewer();
+        });
+
+        function onDocumentLoadSuccess(doc) {
+
+            // We could still make use of Document.getSubItemsWithProperties()
+            // However, when using a ViewingApplication, we have access to the **bubble** attribute,
+            // which references the root node of a graph that wraps each object from the Manifest JSON.
+            let viewables = viewerApp.bubble.search({ 'type': 'geometry' });
+            if (viewables.length === 0) {
+                console.error('Document contains no viewables.');
+                return;
+            }
+
+            // Choose any of the avialble viewables
+            viewerApp.selectItem(viewables[0].data, onItemLoadSuccess, onItemLoadFail);
+
+
+        }
+
+        function onDocumentLoadFailure(viewerErrorCode) {
+            console.error('onDocumentLoadFailure() - errorCode:' + viewerErrorCode);
+        }
+
+        function onItemLoadSuccess(reported_viewer, item) {
+
+            viewer = reported_viewer;
+            viewer.addEventListener(Autodesk.Viewing.OBJECT_TREE_CREATED_EVENT, setupMyModel);
+            viewer.addEventListener(Autodesk.Viewing.SELECTION_CHANGED_EVENT, showSelection);
+        }
+
+        function onItemLoadFail(errorCode) {
+            console.error('onItemLoadFail() - errorCode:' + errorCode);
+        }
+
+
+
+        function setupMyModel() {
+            /*============================ MY ATTEMPTS =======================*/
+
+            tree = viewer.model.getData().instanceTree;
+            viewer.impl.setPostProcessParameter("style", "edging");
+            // viewer.impl.setPostProcessParameter("idEdges", false);
+            // viewer.impl.setPostProcessParameter("normalEdges", false);
+            viewer.impl.setPostProcessParameter("depthEdges", false);
+
+            let color = 0xff0000;
+
+            let geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshPhongMaterial({
+                specular: new THREE.Color(color),
+                side: THREE.DoubleSide,
+                color,
+                transparent: true,
+                opacity: 0.1
+            })
+            let some_mesh = new THREE.Mesh(geometry, material);
+
+            viewer.impl.scene.add(some_mesh);
+
+            const materials = viewer.impl.getMaterials()
+
+            materials.addMaterial(
+                color.toString(16), material, true)
+
+            viewer.impl.sceneUpdated(true);
+
+
+
+
+
+
+
+            let MainBoundingBox = new Float32Array(6);
+
+            tree.nodeAccess.getNodeBox(10,MainBoundingBox);
+
+            MainBoundingBox = {
+                x1: MainBoundingBox[0], 
+                y1: MainBoundingBox[1],
+                z1: MainBoundingBox[2],
+                x2: MainBoundingBox[3],
+                y2: MainBoundingBox[4],
+                z2: MainBoundingBox[5]
+            };
+
+
+
+            let zones = []
+
+            findNodeIdsForZones().forEach(element => {
+
+                let node_name = tree.nodeAccess.name(element);
+                let zone = tree.nodeAccess.name(element).replace("Zone","");
+
+                if(zone === "Green") { return; }
+
+                let geometry = new THREE.BoxGeometry(1, 1, 1);
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0xff0000,
+                    transparent: true,
+                    opacity: 0.0,
+                    side: THREE.DoubleSide,
+                })
+                let indicator_mesh = new THREE.Mesh(geometry, material);
+
+                
+
+
+                viewer.impl.matman().addMaterial(
+                    'transparent',
+                    material,
+                    true
+                )
+                
+                
+                let boundingBox = new Float32Array(6);
+                tree.nodeAccess.getNodeBox(element,boundingBox);
+                boundingBox = {
+                    x1: boundingBox[0], 
+                    y1: boundingBox[1],
+                    z1: boundingBox[2],
+                    x2: boundingBox[3],
+                    y2: boundingBox[4],
+                    z2: boundingBox[5]
+                };
+
+                indicator_mesh.position.x = (boundingBox.x1 + boundingBox.x2)*0.5;
+                indicator_mesh.position.y = (MainBoundingBox.y1 + MainBoundingBox.y2)*0.5;
+                indicator_mesh.position.z = (boundingBox.z1 + boundingBox.z2)*0.5;
+
+                indicator_mesh.scale.x = Math.abs(boundingBox.x1 - boundingBox.x2)-10; //to avoid z-fighting make it 10 unit smaller
+                indicator_mesh.scale.y = Math.abs(MainBoundingBox.y1 - MainBoundingBox.y2)-10; //to avoid z-fighting make it 10 unit smaller
+                indicator_mesh.scale.z = Math.abs(boundingBox.z1 - boundingBox.z2)-10; //to avoid z-fighting make it 10 unit smaller
+
+                viewer.impl.sceneAfter.add(indicator_mesh);
+                viewer.impl.sceneUpdated(true);
+
+                zones.push({
+                    id: element,
+                    name: tree.nodeAccess.name(element),
+                    permission: zone,
+                    mesh: indicator_mesh
+
+                })
+            });
+
+
+
+
+
+            var slider1 = document.getElementById("Zone1");
+            var slider2 = document.getElementById("Zone2");
+            var slider3 = document.getElementById("Zone3");
+
+
+            // Update the current slider value (each time you drag the slider handle)
+            slider1.oninput = function (event) {
+                zones.forEach(element => {
+                    if(element.permission === "Blue") {
+                        element.mesh.material.opacity = parseInt(event.target.value) / 100.0;
+                        console.log(element.name)
+                    }
+                });
+                viewer.impl.sceneUpdated(true);
+            }
+
+            slider2.oninput = function (event) {
+                zones.forEach(element => {
+                    if(element.permission === "Yellow") {
+                        element.mesh.material.opacity = parseInt(event.target.value) / 100.0;
+                        console.log(element.name)
+                    }
+                });
+                viewer.impl.sceneUpdated(true);
+            }
+
+            slider3.oninput = function (event) {
+                zones.forEach(element => {
+                    if(element.permission === "Forbidden") {
+                        element.mesh.material.opacity = parseInt(event.target.value) / 100.0;
+                        console.log(element.name)
+                    }
+                });
+                viewer.impl.sceneUpdated(true);
+            }
+
+
+            console.log({zones});
+
+
+
+
+
+            
+
+
+
+
+
+
+
+
+
+            function findNodeIdsForZones() {
+                let nodeList = Object.values(tree.nodeAccess.dbIdToIndex);
+                return nodeList.filter(index => (tree.getNodeName(index).includes("Zone") 
+                                             && !tree.nodeAccess.getNumChildren(index)));
+            }
+
+
+
+
+
+
+
+
+
+        }
+
+
+        function showSelection() {
+            let id_array = NOP_VIEWER.getSelection()[0];
+            document.getElementById("id_printer").innerText = "Selected_ID: " + String(id_array);
+        }
+
+    </script>
+
+
+
+
+
+</body>
+
+</html>
