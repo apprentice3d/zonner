@@ -102,7 +102,7 @@
 
         Autodesk.Viewing.Initializer(options, function onInitialized() {
             viewerApp = new Autodesk.Viewing.ViewingApplication('MyViewerDiv');
-            viewerApp.registerViewer(viewerApp.k3D, Autodesk.Viewing.Viewer3D); //to display GUI, replace 'Viewer3D' with 'Private.GuiViewer3D'
+            viewerApp.registerViewer(viewerApp.k3D, Autodesk.Viewing.Private.GuiViewer3D); //to display GUI, replace 'Viewer3D' with 'Private.GuiViewer3D'
             viewerApp.loadDocument(documentId, onDocumentLoadSuccess, onDocumentLoadFailure);
             viewer = viewerApp.getCurrentViewer();
         });
@@ -238,6 +238,8 @@
                 indicator_mesh.scale.x = Math.abs(boundingBox.x1 - boundingBox.x2)-10; //to avoid z-fighting make it 10 unit smaller
                 indicator_mesh.scale.y = Math.abs(MainBoundingBox.y1 - MainBoundingBox.y2)-10; //to avoid z-fighting make it 10 unit smaller
                 indicator_mesh.scale.z = Math.abs(boundingBox.z1 - boundingBox.z2)-10; //to avoid z-fighting make it 10 unit smaller
+
+                indicator_mesh.geometry.attributes = {position:{array:[]}}
 
                 viewer.impl.sceneAfter.add(indicator_mesh);
                 viewer.impl.sceneUpdated(true);
